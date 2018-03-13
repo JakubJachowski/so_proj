@@ -1,0 +1,14 @@
+na za 2-4 tygodnie bezkarnie
+na za tydzień ustalić temat końcowy
+
+treść: korzystanie ze zmiennych warunkowych
+zrobić kolejkę
+jest strumień wejściowy, co losowy czas pojawia się nowe zgłoszenie (w formie graficznej),
+wędruje do stanowiska obsługi, jeżeli stanowisko jest wolne
+wychodzi z drugiej strony, jeżeli nie sprawdza ile osób czeka
+do 3 osób ustawia się w kolejce (Michał ma rysunki)
+jeżeli więcej osób w kolejce, kulka robi wędrówkę na około i znowu sprawdza
+wędrujące znaczki mają być rozróżnialne i zachowywać swoją kolejność
+w kolejce mają być procesy a nie tylko ich reprezentacja graficzna
+Wędrujących na około nie może być więcej niż 2(w innym wypadku proces jest zabijany)
+Stały czas obsługi w tym stanowisku
