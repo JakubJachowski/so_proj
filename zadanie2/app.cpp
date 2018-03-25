@@ -7,10 +7,14 @@
 
 using namespace std;
 mutex mtx;
+mutex que_mtx;
 condition_variable cv;
-const int thread_count = 1;
-const int circleSize = 5;
+condition_variable que_cv;
+const int thread_count = 15;
+const int circleSize = 10;
 const int circleXStart = 10;
+int queStatus = 0;
+bool isManagerBusy = false;
 
 const double slower = 100000000;
 const int height = 90;
@@ -71,9 +75,18 @@ bool isCircleFinished(Client *c){
 	}
 }
 
+
+
+void manageQueue(){
+	while(true){
+
+	}
+}
+
 void calculate(int index){
 	//unique_lock<mutex> lck(mtx);
 	int position=0;
+	bool inQueue = false;
 	//cout<<"Start thread"<<index<<endl;
 	while(true){
 
@@ -85,7 +98,12 @@ void calculate(int index){
 		if(clients[index].x<circleXStart){
 			clients[index].x++;
 		}else{
-			isCircleFinished(&clients[index]);
+			if(queStatus<3){
+				isInQueue = true;
+
+			}else{
+				isCircleFinished(&clients[index]);
+			}
 		}
 		
 
