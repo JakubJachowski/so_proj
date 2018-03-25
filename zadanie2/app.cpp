@@ -9,16 +9,20 @@ using namespace std;
 mutex mtx;
 condition_variable cv;
 const int thread_count = 1;
+const int circleSize = 5;
+const int circleXStart = 10;
+
 const double slower = 100000000;
-const int height = 20;
+const int height = 90;
 bool ready = false;
+bool aux_ready = true;
 bool isCashierBusy = false;
 int position_array[thread_count];
 WINDOW *windows[thread_count];
 
 struct Client{
 	int x=0;
-	int y=0;
+	int y=circleSize;
 	bool isInQ = FALSE;
 };
 
@@ -32,26 +36,96 @@ bool isFinished(int tab[]){
 	return result;
 }
 
-void serveClient(){};
+bool isCircleFinished(Client *c){
+	if(c->y==circleSize && c->x==circleXStart){
+		c->y--;
+		return false;
+	} else{
+		if(c->x==circleXStart && c->y>0 && c->y<circleSize) {
+			c->y--;
+			return false;
+		}else{
+			if(c->y==0 && c->x<(circleXStart+2*circleSize)){
+				c->x++;
+				return false;
+			}else{
+				if(c->x==(2*circleSize+circleXStart) && c->y<(2*circleSize)){
+					c->y++;
+					return false;
+				}else{
+					if(c->y==(2*circleSize) && c->x>(circleXStart)){
+						c->x--;
+						return false;
+					}else{
+						if(c->x==circleXStart  && c->y!=(circleSize+1)){
+							c->y--;
+							return false;
+						}else{
+							c->y+=10;
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+}
 
 void calculate(int index){
-
+	//unique_lock<mutex> lck(mtx);
 	int position=0;
 	//cout<<"Start thread"<<index<<endl;
 	while(true){
+
+		//while(!aux_ready) cv_aux.wait(lck);
 		usleep(100000);
 		mtx.lock();
 
-		if(clients[index].x<7){
+
+		if(clients[index].x<circleXStart){
 			clients[index].x++;
 		}else{
-			clients[index].y++;
+			isCircleFinished(&clients[index]);
 		}
+		
+
+
+
+		// if(clients[index].x<circleXStart){
+		// 	clients[index].x++;
+		// }else{
+		// 	if(clients[index].y==circleSize && clients[index].x==circleXStart){
+		// 		clients[index].y--;
+		// 	} else{
+		// 		if(clients[index].x==circleXStart && clients[index].y>0 && clients[index].y<circleSize) {
+		// 			clients[index].y--;
+		// 		}else{
+		// 			if(clients[index].y==0 && clients[index].x<(circleXStart+2*circleSize)){
+		// 				clients[index].x++;
+		// 			}else{
+		// 				if(clients[index].x==(2*circleSize+circleXStart) && clients[index].y<(2*circleSize)){
+		// 					clients[index].y++;
+		// 				}else{
+		// 					if(clients[index].y==(2*circleSize) && clients[index].x>(circleXStart)){
+		// 						clients[index].x--;
+		// 					}else{
+		// 						if(clients[index].x==circleXStart  && clients[index].y!=(circleSize+1)){
+		// 							clients[index].y--;
+		// 						}else{
+		// 							clients[index].y+=10;
+		// 						}
+		// 					}
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
+
 		
 		position++;
 		position_array[index] = position;
 		//cout<<"Thread"<<index<<", position="<<position_array[index]<<endl;
-		ready=true;
+		ready = true;
 		mtx.unlock();
 		cv.notify_all();
 		if(position==height) return;
@@ -88,18 +162,20 @@ int main(int argc, char *argv[])
 {
     initscr();
 
-    thread threads[thread_count+1];
+    thread threads[thread_count+2];
 
 
     for(int i=0;i<thread_count;i++){
     	threads[i] = thread(calculate, i);
     }
     threads[thread_count] = thread(draw);
+	//threads[thread_count+1] = thread(interrupter);
 
     for(int i=0;i<thread_count;i++){
     	threads[i].join();
     }
     threads[thread_count].join();
+	// threads[thread_count+1].join();
 
     getchar();
 
