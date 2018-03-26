@@ -9,7 +9,8 @@ using namespace std;
 
 
 const int queueSize = 3;
-const int thread_count = 1;
+const int thread_count = 5;
+thread threads[thread_count+1];
 
 condition_variable cv_client;
 condition_variable cv2;
@@ -21,6 +22,8 @@ mutex mtx_cashier;
 int queueCount = 0;
 int queue[3];
 bool isClientInQueueArray[thread_count];
+bool isClientFinishedArray[thread_count];
+
 
 void doCircle(){};
 
@@ -33,6 +36,7 @@ void initQueue(){
 void initIsClientInQueueArray(){
     for(int i=0;i<thread_count;i++){
         isClientInQueueArray[i] = false;
+        isClientFinishedArray[i] = false;
     }
 }
 
@@ -63,6 +67,11 @@ void client(int id){
 
     unique_lock<mutex> lck(mtx_client);
     while(true){
+        if(isClientFinishedArray[id]) {
+            cout<<"client leaving"<<endl;
+            break;
+        }
+        
         usleep(100000);
         cout<<"client walks..."<<endl;
         if(isQueueFull()){
@@ -97,7 +106,11 @@ void cashier(){
         if(queue[0]!=-1){
             usleep(100000);
             cout<<"serving client"<<endl;
+            usleep(100000);          
             isClientInQueueArray[queue[0]] = false;
+            //isClientFinishedArray[queue[0]] = true;
+            queue[0] = -1; 
+            manageQueue(); 
             cv_client.notify_one();
         }
     }
@@ -107,11 +120,17 @@ void cashier(){
 int main(int argc, char *argv[])
 {
     initQueue();
-
     initIsClientInQueueArray();
 
-    thread t1 = thread(cashier);
-    thread t2 = thread(client, 0);
+    threads[thread_count] = thread(cashier);
+    for(int i=0;i<thread_count;i++){
+        threads[i] = thread(client, i);
+    }
+
+    
+
+    // thread t1 = thread(cashier);
+    // thread t2 = thread(client, 0);
     getchar();
     return 0;
 }
