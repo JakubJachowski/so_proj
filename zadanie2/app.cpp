@@ -27,7 +27,6 @@ WINDOW *windows[thread_count];
 struct Client{
 	int x=0;
 	int y=circleSize;
-	bool isInQ = FALSE;
 };
 
 Client clients[thread_count];	
@@ -78,13 +77,11 @@ bool isCircleFinished(Client *c){
 
 
 void manageQueue(){
-	while(true){
 
-	}
 }
 
 void calculate(int index){
-	//unique_lock<mutex> lck(mtx);
+	unique_lock<mutex> lck_calculate(que_mtx);
 	int position=0;
 	bool inQueue = false;
 	//cout<<"Start thread"<<index<<endl;
@@ -100,6 +97,7 @@ void calculate(int index){
 		}else{
 			if(queStatus<3){
 				isInQueue = true;
+				while(isManagerBusy) que_cv.wait(lck_calculate);
 
 			}else{
 				isCircleFinished(&clients[index]);
@@ -107,6 +105,26 @@ void calculate(int index){
 		}
 		
 
+	// 	unique_lock<mutex> lck(mtx);
+	// while(true){
+	// 	while(!ready) cv.wait(lck);
+	// 	for(int i=0;i<thread_count;i++){
+
+	// 		if(windows[i]==NULL) windows[i] = newwin(2,2,0,0);
+    //         wclear(windows[i]);
+    //         wrefresh(windows[i]);
+    //         mvwin(windows[i],clients[i].y,clients[i].x);
+	// 		box(windows[i], '|', '-');
+    // 		wrefresh(windows[i]);
+			
+	// 	}
+	// 	ready=false;
+
+	// 	if(position_array[0]==height){
+	// 		clear();
+	// 		return;
+	// 	} 
+	// }
 
 
 		// if(clients[index].x<circleXStart){
