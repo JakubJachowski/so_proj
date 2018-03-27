@@ -5,12 +5,13 @@
 #include<iostream>
 #include<unistd.h>
 #include <queue>
+#include <chrono>    
 
 using namespace std;
 
 
 const int queueSize = 3;
-const int thread_count = 10;
+const int thread_count = 100;
 const int stepInterval = 100000;
 
 const int circleSize = 10;
@@ -22,6 +23,9 @@ struct Client{
 	int x=0;
 	int y=circleSize;
     int positionInQ = -1;
+    bool finished = false;
+    bool isQuit =false;
+    bool waitingForStep = false;
 };
 
 Client clients[thread_count];
@@ -41,6 +45,7 @@ bool isReadyToDraw = true;
 WINDOW *windows[thread_count];
 
 queue<int> q;
+queue<int> q_finished;
 
 
 
@@ -101,7 +106,7 @@ void client(int id){
     unique_lock<mutex> lck(mtx_client);
 
     for(int i=0;i<circleXStart;i++){
-        usleep(stepInterval);
+        cv_client.wait_for(lck, chrono::milliseconds(500));
         clients[id].x++;
         isReadyToDraw = true;
         cv_draw.notify_one();
@@ -123,19 +128,16 @@ void client(int id){
             //cout<<"queue is full"<<endl;
             finishedDoingCircle = false;
             while(!finishedDoingCircle) {
+
                 finishedDoingCircle = isCircleFinished(&clients[id]);
                 isReadyToDraw = true;
                 cv_draw.notify_one();
-                //doCircle();
-                usleep(10000);
-                //cout<<"doing circle..."<<endl;
+                cv_client.wait_for(lck, chrono::milliseconds(100));
             }
         }else{
             //cout<<"in queue..."<<endl;
             clients[id].positionInQ=q.size();
             q.push(id);
-            clients[id].x+=(20+q.size());
-            clients[id].y+=15;
             isClientInQueueArray[id]= true;
             while(isClientInQueueArray[id]) {
                 cv_client.wait(lck);
@@ -156,11 +158,31 @@ void drawScene(){
         //cout<<"IM DRAWING BRO"<<endl;
         for(int i=0;i<thread_count;i++){
             if(windows[i]==NULL) windows[i] = newwin(2,2,0,0);
-            wclear(windows[i]);
-            wrefresh(windows[i]);
-            mvwin(windows[i],clients[i].y,clients[i].x);
-			box(windows[i], '|', '-');
-    		wrefresh(windows[i]);
+            if(clients[i].isQuit) continue;
+            if(clients[i].positionInQ!=-1 && !clients[i].finished){
+                wclear(windows[i]);
+                wrefresh(windows[i]);
+                mvwin(windows[i],2,2+clients[i].positionInQ);    
+                box(windows[i], '|', '-');
+    		    wrefresh(windows[i]);
+            }else{
+                if(!clients[i].finished){
+                    wclear(windows[i]);
+                    wrefresh(windows[i]);
+                    mvwin(windows[i],clients[i].y+i,clients[i].x);
+                    box(windows[i], '|', '-');
+    		        wrefresh(windows[i]);
+                }else{
+                    wclear(windows[i]);
+                    wrefresh(windows[i]);
+                    mvwin(windows[i],5+(q_finished.size()*2),20);
+                    box(windows[i], '|', '-');
+    		        wrefresh(windows[i]);
+                    clients[i].isQuit = true;
+                }
+                
+            }
+			
         }
         isReadyToDraw = false;
     }
@@ -169,17 +191,34 @@ void drawScene(){
 void cashier(){
     // unique_lock<mutex> lck(mtx_cashier);
     while(true){
-        usleep(100000);
-        usleep(100000);
+        this_thread::sleep_for(chrono::milliseconds(1000));
         if(!q.empty()){
-            usleep(100000);
-            //cout<<"serving client"<<endl;
-            usleep(1000000);          
+            this_thread::sleep_for(chrono::milliseconds(1000));
             isClientInQueueArray[q.front()] = false;
             isClientFinishedArray[q.front()] = true;
-            q.pop();
-            usleep(100000);
-            cv_client.notify_one();
+            if(q.size()==queueSize){
+                clients[q.back()].positionInQ=1;
+                clients[q.front()].finished = true;
+                q_finished.push(q.front());
+                q.pop();
+                clients[q.front()].positionInQ=0;
+            }else{
+                if(q.size()==queueSize-1){
+                    clients[q.front()].finished = true;
+                    q_finished.push(q.front());
+                    q.pop();
+                    clients[q.front()].positionInQ=0;
+                }else{
+                    clients[q.front()].finished = true;
+                    q_finished.push(q.front());
+                    q.pop();
+                }
+            }
+            
+            cv_draw.notify_all();
+
+            this_thread::sleep_for(chrono::milliseconds(1000));
+            cv_client.notify_all();
         }
     }
 
@@ -196,9 +235,15 @@ int main(int argc, char *argv[])
 
     for(int i=0;i<thread_count;i++){
         threads[i] = thread(client, i);
-        usleep(100000);
+       // this_thread::sleep_for(chrono::milliseconds(1000));
+
+       usleep(100000);
     }
 
+    for(int i=0;i<thread_count+2;i++){
+        threads[i].join();
+        usleep(100000);
+    }
     
 
     

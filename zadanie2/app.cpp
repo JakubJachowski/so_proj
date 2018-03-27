@@ -104,60 +104,6 @@ void calculate(int index){
 			}
 		}
 		
-
-	// 	unique_lock<mutex> lck(mtx);
-	// while(true){
-	// 	while(!ready) cv.wait(lck);
-	// 	for(int i=0;i<thread_count;i++){
-
-	// 		if(windows[i]==NULL) windows[i] = newwin(2,2,0,0);
-    //         wclear(windows[i]);
-    //         wrefresh(windows[i]);
-    //         mvwin(windows[i],clients[i].y,clients[i].x);
-	// 		box(windows[i], '|', '-');
-    // 		wrefresh(windows[i]);
-			
-	// 	}
-	// 	ready=false;
-
-	// 	if(position_array[0]==height){
-	// 		clear();
-	// 		return;
-	// 	} 
-	// }
-
-
-		// if(clients[index].x<circleXStart){
-		// 	clients[index].x++;
-		// }else{
-		// 	if(clients[index].y==circleSize && clients[index].x==circleXStart){
-		// 		clients[index].y--;
-		// 	} else{
-		// 		if(clients[index].x==circleXStart && clients[index].y>0 && clients[index].y<circleSize) {
-		// 			clients[index].y--;
-		// 		}else{
-		// 			if(clients[index].y==0 && clients[index].x<(circleXStart+2*circleSize)){
-		// 				clients[index].x++;
-		// 			}else{
-		// 				if(clients[index].x==(2*circleSize+circleXStart) && clients[index].y<(2*circleSize)){
-		// 					clients[index].y++;
-		// 				}else{
-		// 					if(clients[index].y==(2*circleSize) && clients[index].x>(circleXStart)){
-		// 						clients[index].x--;
-		// 					}else{
-		// 						if(clients[index].x==circleXStart  && clients[index].y!=(circleSize+1)){
-		// 							clients[index].y--;
-		// 						}else{
-		// 							clients[index].y+=10;
-		// 						}
-		// 					}
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// }
-
-		
 		position++;
 		position_array[index] = position;
 		//cout<<"Thread"<<index<<", position="<<position_array[index]<<endl;
