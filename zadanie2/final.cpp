@@ -11,11 +11,13 @@ using namespace std;
 
 
 const int queueSize = 3;
-const int thread_count = 100;
+const int thread_count = 10;
 const int stepInterval = 100000;
 
 const int circleSize = 10;
 const int circleXStart = 5;
+
+int doingCircleCount = 0;
 
 thread threads[thread_count+2];
 
@@ -26,6 +28,8 @@ struct Client{
     bool finished = false;
     bool isQuit =false;
     bool waitingForStep = false;
+    bool isRagequit = false;
+    bool toDraw = true;
 };
 
 Client clients[thread_count];
@@ -46,7 +50,6 @@ WINDOW *windows[thread_count];
 
 queue<int> q;
 queue<int> q_finished;
-
 
 
 void initIsClientInQueueArray(){
@@ -125,15 +128,23 @@ void client(int id){
         isReadyToDraw = true;
         cv_draw.notify_one();
         if(q.size()==queueSize){
-            //cout<<"queue is full"<<endl;
+            
+            if(doingCircleCount==2) {
+                clients[id].isRagequit = true;
+                isReadyToDraw = true;
+                cv_draw.notify_one();
+                break;
+            }
+            doingCircleCount++;
             finishedDoingCircle = false;
             while(!finishedDoingCircle) {
-
                 finishedDoingCircle = isCircleFinished(&clients[id]);
                 isReadyToDraw = true;
                 cv_draw.notify_one();
                 cv_client.wait_for(lck, chrono::milliseconds(100));
             }
+            doingCircleCount--;
+
         }else{
             //cout<<"in queue..."<<endl;
             clients[id].positionInQ=q.size();
@@ -157,31 +168,47 @@ void drawScene(){
         while(!isReadyToDraw) cv_draw.wait(lck);
         //cout<<"IM DRAWING BRO"<<endl;
         for(int i=0;i<thread_count;i++){
-            if(windows[i]==NULL) windows[i] = newwin(2,2,0,0);
-            if(clients[i].isQuit) continue;
-            if(clients[i].positionInQ!=-1 && !clients[i].finished){
-                wclear(windows[i]);
-                wrefresh(windows[i]);
-                mvwin(windows[i],2,2+clients[i].positionInQ);    
-                box(windows[i], '|', '-');
-    		    wrefresh(windows[i]);
-            }else{
-                if(!clients[i].finished){
-                    wclear(windows[i]);
-                    wrefresh(windows[i]);
-                    mvwin(windows[i],clients[i].y+i,clients[i].x);
-                    box(windows[i], '|', '-');
-    		        wrefresh(windows[i]);
-                }else{
-                    wclear(windows[i]);
-                    wrefresh(windows[i]);
-                    mvwin(windows[i],5+(q_finished.size()*2),20);
-                    box(windows[i], '|', '-');
-    		        wrefresh(windows[i]);
-                    clients[i].isQuit = true;
+
+            if(clients[i].toDraw){
+                if(windows[i]==NULL) windows[i] = newwin(2,2,0,0);
+                if(clients[i].isRagequit){
+                    //wborder(windows[i], ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '); // Erase frame around the window
+                    //wrefresh(windows[i]); // Refresh it (to leave it blank)
+                    // wclear(windows[i]);
+                    // wrefresh(windows[i]);
+                    // box(windows[i], ' ', ' ');
+                    // wrefresh(windows[i]);
+                    clients[i].toDraw=false;
+                    
+                    wrefresh(windows[i]); // Refresh it (to leave it blank)
+                    //delwin(windows[i]); // and delete
                 }
-                
+                if(clients[i].isQuit) continue;
+                if(clients[i].positionInQ!=-1 && !clients[i].finished){
+                    wclear(windows[i]);
+                    wrefresh(windows[i]);
+                    mvwin(windows[i],2,2+clients[i].positionInQ);    
+                    box(windows[i], ' ', ' ');
+                    wrefresh(windows[i]);
+                }else{
+                    if(!clients[i].finished){
+                        wclear(windows[i]);
+                        wrefresh(windows[i]);
+                        mvwin(windows[i],clients[i].y+i,clients[i].x);
+                        box(windows[i], ' ', ' ');
+                        wrefresh(windows[i]);
+                    }else{
+                        wclear(windows[i]);
+                        wrefresh(windows[i]);
+                        mvwin(windows[i],5+(q_finished.size()*2),20);
+                        box(windows[i], ' ', ' ');
+                        wrefresh(windows[i]);
+                        clients[i].isQuit = true;
+                    }                    
+                }
             }
+
+            
 			
         }
         isReadyToDraw = false;
@@ -227,6 +254,8 @@ void cashier(){
 int main(int argc, char *argv[])
 {
     initscr();
+    start_color();
+    curs_set(0);
 
     initIsClientInQueueArray();
 
@@ -242,7 +271,6 @@ int main(int argc, char *argv[])
 
     for(int i=0;i<thread_count+2;i++){
         threads[i].join();
-        usleep(100000);
     }
     
 

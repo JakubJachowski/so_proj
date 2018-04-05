@@ -6,132 +6,83 @@
 #include<unistd.h>
 #include <queue>
 #include <chrono>    
-
 using namespace std;
 
-
-const int queueSize = 3;
-const int thread_count = 100;
-const int stepInterval = 100000;
-
-const int circleSize = 10;
-const int circleXStart = 5;
-
-thread threads[thread_count+2];
-
 struct Client{
-	int x=0;
-	int y=circleSize;
-    int positionInQ = -1;
-    bool finished = false;
-    bool isQuit =false;
-    bool waitingForStep = false;
-};
-
-Client clients[thread_count];
-
-condition_variable cv_client;
-condition_variable cv_draw;
-condition_variable cv;
-
-mutex mtx_draw;
-mutex mtx_client;
-mutex mtx_cashier;
-
-bool isClientInQueueArray[thread_count];
-bool isClientFinishedArray[thread_count];
-bool isReadyToDraw = true;
-
-WINDOW *windows[thread_count];
-
-queue<int> q;
-queue<int> q_finished;
-
-
-
-bool isQueueFull(){
-    if(q.size()==queueSize) return true;
-    return false;
+	condition_variable cv_client;
+	int pos_x = 0;
+	int pos_y = start_height;
+	bool is_done = false;
 }
 
+mutex mtx_client;
+mutex mtx_drawer;
 
-bool isCircleFinished(Client *c){
-    //cout<<c->x<<" "<<c->y<<"AYYYYY"<<endl;
-	if(c->y==circleSize && c->x==circleXStart){
-		c->y--;
-		return false;
-	} else{
-		if(c->x==circleXStart && c->y>0 && c->y<circleSize) {
-			c->y--;
-			return false;
+//condition_variable cv_client;
+condition_variable cv_drawer;
+
+
+const int queue_start_positionX = 7;
+const int start_height = 7;
+const int clients_count = 10;
+const int delay = 500;
+
+
+bool drawer_busy;
+bool draw;
+
+queue<Client> waiting_clients;
+
+thread thread_array[clients_count];
+
+Client client_array[clients_count];
+
+
+
+void client(Client *client){
+	unique_lock<mutex> lck(mtx_client);
+
+	//walk to queue
+	for(int i=0;i<queue_start_positionX;i++){
+		client->cv_client.wait_for(lck, chrono::milliseconds(delay));
+		client->pos_x++;
+		cout<<client->pos_x<<endl;
+		if(!drawer_busy) {
+			draw = true;
+			cv_draw.notify_one();
+		}
+	}
+
+	for(int i=0;i<2;i++){
+		if(waiting_clients.size==2){
+			//do circle
 		}else{
-			if(c->y==0 && c->x<(circleXStart+2*circleSize)){
-				c->x++;
-				return false;
-			}else{
-				if(c->x==(2*circleSize+circleXStart) && c->y<(2*circleSize)){
-					c->y++;
-					return false;
-				}else{
-					if(c->y==(2*circleSize) && c->x>(circleXStart)){
-						c->x--;
-						return false;
-					}else{
-						if(c->x==circleXStart  && c->y!=(circleSize+1)){
-							c->y--;
-							return false;
-						}else{
-							c->y+=10;
-							return true;
-						}
-					}
-				}
-			}
+			waiting_clients.push(client);
+			while(!client->is_done) client->cv_client.wait(lck);
+			break;
+		}
+		client->is_done=true;
+	}
+}
+
+void drawer(){
+	unique_lock<mutex> lck(mtx_drawer);
+	while(true){
+		while(!draw) cv_drawer.wait(lck);
+		draw = false;
+		drawer_busy = true;
+		for(int i=0;i<clients_count;i++){
+			//draw clients
 		}
 	}
 }
 
-
-void client(int id){
-	unique_lock<mutex> lck(mtx_client);
-
-	for(int i=0;i<circleXStart;i++){
-		cv_client.wait_for(lck, chrono::milliseconds(500));
-		//this_thread::sleep_for(chrono::milliseconds(500));
-		clients[id].x++;
-		isReadyToDraw = true;
-		cout<<id<<endl;
-		cv_draw.notify_one();
-	} 
-}
-
-void drawScene(){
-    unique_lock<mutex> lck(mtx_draw);
-	while(true){
-		cv_draw.wait(lck, []{return isReadyToDraw;});
-		cout<<"draw"<<endl;
-		isReadyToDraw=false;
-	}
-}
-
-void cashier(){
-}
-
 int main(int argc, char *argv[])
 {
-
-    for(int i=0;i<thread_count;i++){
-        threads[i] = thread(client, i);
-		usleep(100000);
-    }
-	threads[thread_count] = thread(drawScene);
-
-
+	for(int i=0;i<clients_count;i++){
+		thread_array[i] = thread(client, &client_array[i]);
+	}
     
-
-    // thread t1 = thread(cashier);
-    // thread t2 = thread(client, 0);
     getchar();
     return 0;
 }
-
