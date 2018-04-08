@@ -4,10 +4,11 @@
 #include<condition_variable>
 #include<iostream>
 #include<unistd.h>
-#include <queue>
-#include <set>
-#include <chrono>    
-#include <string>
+#include<queue>
+#include<set>
+#include<chrono>    
+#include<string>
+#include<ctime>
 using namespace std;
 
 const int queue_start_positionX = 7;
@@ -21,6 +22,7 @@ struct Client{
 	int pos_x = 0;
 	int pos_y = start_height;
 	bool is_done = false;
+	int color = 0;
 };
 
 mutex mtx_client;
@@ -118,6 +120,15 @@ void client(Client *client){
 		}
 		//client->is_done=true;
 	}
+	client->pos_x = queue_start_positionX + 2*circleSize + 1;
+	for(int i=0;i<50;i++){
+		client->cv_client.wait_for(lck, chrono::milliseconds(delay));
+		client->pos_x++;
+		if(!drawer_busy) {
+			draw = true;
+			cv_drawer.notify_one();
+		}
+	}
 }
 
 void drawer(){
@@ -131,6 +142,7 @@ void drawer(){
 		for(int i=0;i<clients_count;i++){
 			if(!client_array[i].is_done){
 				//cout<<client_array[i].pos_x<<" "<<client_array[i].pos_y<<endl;
+				attron(COLOR_PAIR(client_array[i].color));
 				mvprintw(client_array[i].pos_y,client_array[i].pos_x,"x");
 				string tmp_queue_status = "Queue count: " + to_string(waiting_clients.size());
 				string tmp_circle_status = "Circle count: " + to_string(doing_circle_clients.size());
@@ -141,7 +153,7 @@ void drawer(){
 				const char *circle_status = tmp_circle_status.c_str();
 				const char *finished_clients_status = tmp_finished.c_str();
 				
-				
+				attron(COLOR_PAIR(1));
 				mvprintw(0,0,queue_status);
 				mvprintw(1,0,circle_status);
 				mvprintw(2,0,finished_clients_status);				
@@ -174,14 +186,28 @@ int main(int argc, char *argv[])
 	unique_lock<mutex> lck(mtx);
 	condition_variable cv;
 
+	
 	initscr();
+	start_color();
+	init_pair(1, COLOR_BLACK, COLOR_CYAN);
+	init_pair(2, COLOR_CYAN, COLOR_CYAN);
+	init_pair(3, COLOR_BLUE, COLOR_BLUE);
+	init_pair(4, COLOR_GREEN, COLOR_GREEN);
+	init_pair(5, COLOR_MAGENTA, COLOR_MAGENTA);
+	init_pair(6, COLOR_WHITE, COLOR_WHITE);
+	init_pair(7, COLOR_YELLOW, COLOR_YELLOW);
+	
+
 
 	thread drw = thread(drawer);
 	thread cshr = thread(cashier);
 	
+	srand(time(NULL));
+
 	for(int i=0;i<clients_count;i++){
+		client_array[i].color = rand()%8+2;
 		thread_array[i] = thread(client, &client_array[i]);
-		cv.wait_for(lck, chrono::milliseconds(delay));
+		cv.wait_for(lck, chrono::milliseconds(delay*5));
 	}
 	
     endwin();
