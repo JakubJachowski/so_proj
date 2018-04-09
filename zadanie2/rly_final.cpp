@@ -11,10 +11,10 @@
 #include<ctime>
 using namespace std;
 
-const int queue_start_positionX = 7;
-const int start_height = 10;
+const int queue_start_positionX = 20;
+const int start_height = 15;
 const int clients_count = 100;
-const int delay = 300;
+const int delay = 100;
 const int circleSize = 6;
 
 struct Client{
@@ -102,13 +102,14 @@ void client(Client *client){
 	for(int i=0;i<2;i++){
 		if(waiting_clients.size()==2){
 			if(doing_circle_clients.size()==2) {
+				client->pos_x--;
 				for(int i=0;i<50;i++){
-					client->cv_client.wait_for(lck, chrono::milliseconds(delay));
 					client->pos_y--;
 					if(!drawer_busy) {
 						draw = true;
 						cv_drawer.notify_one();
 					}
+					client->cv_client.wait_for(lck, chrono::milliseconds(delay));
 				}
 				return;	
 			}
@@ -161,9 +162,10 @@ void drawer(){
 
 	while(true){
 		while(!draw) cv_drawer.wait(lck);
-		//cout<<"im drawing";
+
 		draw = false;
 		drawer_busy = true;
+		clear();
 		clear();
 		for(int i=0;i<clients_count;i++){
 			if(!client_array[i].in_queue && !client_array[i].being_served){
@@ -175,42 +177,42 @@ void drawer(){
 				attron(COLOR_PAIR(client_array[i].color));
 				mvprintw(start_height, queue_start_positionX + 2*circleSize- 1, "x");
 			}
-			///drawing status
-			tmp_queue_status = "Queue count: " + to_string(waiting_clients.size());
-			tmp_circle_status = "Circle count: " + to_string(doing_circle_clients.size());
-			tmp_finished = "Finished count: " + to_string(finished_clients.size());
 			
-			
-			queue_status = tmp_queue_status.c_str();
-			circle_status = tmp_circle_status.c_str();
-			finished_clients_status = tmp_finished.c_str();
-			
-			attron(COLOR_PAIR(1));
-			mvprintw(0,0,queue_status);
-			mvprintw(1,0,circle_status);
-			mvprintw(2,0,finished_clients_status);
-			mvprintw(start_height-1, queue_start_positionX + 1, "Queue");
-			mvprintw(start_height-1, queue_start_positionX + 2*circleSize- 1, "K");
-			
-
-			//drawing queue
-			if(waiting_clients.size()==2){
-				attron(COLOR_PAIR(waiting_clients.back()->color));
-				mvprintw(start_height, queue_start_positionX + 1, "x");
-				attron(COLOR_PAIR(waiting_clients.front()->color));
-				mvprintw(start_height, queue_start_positionX + 2, "x");
-			}else{
-				if(waiting_clients.front()!=NULL){
-					attron(COLOR_PAIR(waiting_clients.front()->color));
-					mvprintw(start_height, queue_start_positionX + 2, "x");
-				}
-			}
-			refresh();
 			// if(waiting_clients.back()!=NULL){
 			// 	attron(COLOR_PAIR(waiting_clients.back()->color));
 			// 	mvprintw(start_height, queue_start_positionX + 1, "x");
 			// }
 		}
+		///drawing status
+		tmp_queue_status = "Queue count: " + to_string(waiting_clients.size());
+		tmp_circle_status = "Circle count: " + to_string(doing_circle_clients.size());
+		tmp_finished = "Finished count: " + to_string(finished_clients.size());
+		
+		
+		queue_status = tmp_queue_status.c_str();
+		circle_status = tmp_circle_status.c_str();
+		finished_clients_status = tmp_finished.c_str();
+		
+		attron(COLOR_PAIR(1));
+		mvprintw(0,0,queue_status);
+		mvprintw(1,0,circle_status);
+		mvprintw(2,0,finished_clients_status);
+		mvprintw(start_height-1, queue_start_positionX + 1, "Queue");
+		mvprintw(start_height-1, queue_start_positionX + 2*circleSize- 1, "K");
+		
+		//drawing queue
+		if(waiting_clients.size()==2){
+			attron(COLOR_PAIR(waiting_clients.back()->color));
+			mvprintw(start_height, queue_start_positionX + 1, "x");
+			attron(COLOR_PAIR(waiting_clients.front()->color));
+			mvprintw(start_height, queue_start_positionX + 2, "x");
+		}else{
+			if(waiting_clients.front()!=NULL){
+				attron(COLOR_PAIR(waiting_clients.front()->color));
+				mvprintw(start_height, queue_start_positionX + 2, "x");
+			}
+		}
+		refresh();
 		drawer_busy=false;
 	}
 }
@@ -224,6 +226,7 @@ void cashier(){
 			waiting_clients.pop();
 			temp->being_served=true;			
 			temp->in_queue=false;
+			while(drawer_busy) cv_cashier.wait_for(lck, chrono::milliseconds(delay/10));
 			if(!drawer_busy) {
 				draw = true;
 				cv_drawer.notify_one();
@@ -231,11 +234,12 @@ void cashier(){
 			cv_cashier.wait_for(lck, chrono::milliseconds(delay*10));
 			temp->is_done=true;
 			temp->being_served=false;						
-			waiting_clients.front()->cv_client.notify_one();			
+			temp->cv_client.notify_one();
+			while(drawer_busy) cv_cashier.wait_for(lck, chrono::milliseconds(delay/10));
 			if(!drawer_busy) {
 				draw = true;
 				cv_drawer.notify_one();
-			}
+			}			
 		}
 	}
 	
@@ -267,9 +271,9 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 
 	for(int i=0;i<clients_count;i++){
-		client_array[i].color = rand()%8+2;
+		client_array[i].color = rand()%6+2;
 		thread_array[i] = thread(client, &client_array[i]);
-		cv.wait_for(lck, chrono::milliseconds(delay*5));
+		cv.wait_for(lck, chrono::milliseconds(delay*3));
 	}
 	
     endwin();
