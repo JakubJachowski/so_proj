@@ -13,10 +13,11 @@ using namespace std;
 
 const int queue_start_positionX = 20;
 const int start_height = 15;
-const int clients_count = 100;
+const int clients_count = 1;
 const int delay = 100;
 const int circle_size = 6;
 int spawned_clients = 0;
+int end_value = 0;
 
 struct Client{
 	condition_variable cv_client;
@@ -140,7 +141,7 @@ void client(Client *client){
 		//client->is_done=true;
 	}
 	client->pos_x = queue_start_positionX + 2*circle_size + 1;
-	for(int i=0;i<50;i++){
+	for(int i=0;i<20;i++){
 		client->cv_client.wait_for(lck, chrono::milliseconds(delay));
 		client->pos_x++;
 		if(!drawer_busy) {
@@ -148,6 +149,7 @@ void client(Client *client){
 			cv_drawer.notify_one();
 		}
 	}
+	end_value++;
 }
 
 void drawer(){
@@ -224,6 +226,7 @@ void drawer(){
 		}
 		refresh();
 		drawer_busy=false;
+		if(end_value==clients_count) break;
 	}
 }
 
@@ -251,6 +254,7 @@ void cashier(){
 				cv_drawer.notify_one();
 			}			
 		}
+		if(end_value==clients_count) break;
 	}
 	
 }
@@ -287,7 +291,14 @@ int main(int argc, char *argv[])
 		cv.wait_for(lck, chrono::milliseconds(rand()%5000));
 	}
 	
+	drw.join();
+	cshr.join();
+	for(int i=0;i<clients_count;i++){
+		thread_array[i].join();
+	}
+
+	getchar();
     endwin();
-    getchar();
+    
     return 0;
 }
