@@ -15,11 +15,12 @@ const int queue_start_positionX = 20;
 const int start_height = 15;
 const int clients_count = 100;
 const int delay = 100;
-const int circleSize = 6;
+const int circle_size = 6;
+int spawned_clients = 0;
 
 struct Client{
 	condition_variable cv_client;
-	int pos_x = 0;
+	int pos_x = -1;
 	int pos_y = start_height;
 	bool is_done = false;
 	bool in_queue = false;
@@ -54,19 +55,19 @@ bool isCircleFinished(Client *c){
 		c->pos_y--;
 		return false;
 	}else{
-		if(c->pos_x==queue_start_positionX && c->pos_y>(start_height-circleSize) && c->pos_y<=start_height){
+		if(c->pos_x==queue_start_positionX && c->pos_y>(start_height-circle_size) && c->pos_y<=start_height){
 			c->pos_y--;
 			return false;
 		}else{
-			if(c->pos_x<(queue_start_positionX+circleSize*2) && c->pos_y==(start_height-circleSize)){
+			if(c->pos_x<(queue_start_positionX+circle_size*2) && c->pos_y==(start_height-circle_size)){
 				c->pos_x++;
 				return false;
 			}else{
-				if(c->pos_x==(queue_start_positionX+2*circleSize) && c->pos_y<(start_height+circleSize)){
+				if(c->pos_x==(queue_start_positionX+2*circle_size) && c->pos_y<(start_height+circle_size)){
 					c->pos_y++;
 					return false;
 				}else{
-					if(c->pos_x>(queue_start_positionX) && c->pos_y==(start_height+circleSize)){
+					if(c->pos_x>(queue_start_positionX) && c->pos_y==(start_height+circle_size)){
 						c->pos_x--;
 						return false;
 					}else{
@@ -138,7 +139,7 @@ void client(Client *client){
 		}
 		//client->is_done=true;
 	}
-	client->pos_x = queue_start_positionX + 2*circleSize + 1;
+	client->pos_x = queue_start_positionX + 2*circle_size + 1;
 	for(int i=0;i<50;i++){
 		client->cv_client.wait_for(lck, chrono::milliseconds(delay));
 		client->pos_x++;
@@ -155,10 +156,14 @@ void drawer(){
 	string tmp_queue_status;
 	string tmp_circle_status;
 	string tmp_finished;
+	string tmp_spawned_clients;
+	
 					
 	const char *queue_status;
 	const char *circle_status;
 	const char *finished_clients_status;
+	const char *spawned_clients_status;
+	
 
 	while(true){
 		while(!draw) cv_drawer.wait(lck);
@@ -175,7 +180,7 @@ void drawer(){
 			}
 			if(client_array[i].being_served){
 				attron(COLOR_PAIR(client_array[i].color));
-				mvprintw(start_height, queue_start_positionX + 2*circleSize- 1, "x");
+				mvprintw(start_height, queue_start_positionX + 2*circle_size- 1, "x");
 			}
 			
 			// if(waiting_clients.back()!=NULL){
@@ -187,18 +192,23 @@ void drawer(){
 		tmp_queue_status = "Queue count: " + to_string(waiting_clients.size());
 		tmp_circle_status = "Circle count: " + to_string(doing_circle_clients.size());
 		tmp_finished = "Finished count: " + to_string(finished_clients.size());
+		tmp_spawned_clients = "Spawned clients: " + to_string(spawned_clients);
 		
 		
 		queue_status = tmp_queue_status.c_str();
 		circle_status = tmp_circle_status.c_str();
 		finished_clients_status = tmp_finished.c_str();
+		spawned_clients_status = tmp_spawned_clients.c_str();
+		
 		
 		attron(COLOR_PAIR(1));
 		mvprintw(0,0,queue_status);
 		mvprintw(1,0,circle_status);
 		mvprintw(2,0,finished_clients_status);
+		mvprintw(3,0,spawned_clients_status);
+		
 		mvprintw(start_height-1, queue_start_positionX + 1, "Queue");
-		mvprintw(start_height-1, queue_start_positionX + 2*circleSize- 1, "K");
+		mvprintw(start_height-1, queue_start_positionX + 2*circle_size- 1, "K");
 		
 		//drawing queue
 		if(waiting_clients.size()==2){
@@ -273,7 +283,8 @@ int main(int argc, char *argv[])
 	for(int i=0;i<clients_count;i++){
 		client_array[i].color = rand()%6+2;
 		thread_array[i] = thread(client, &client_array[i]);
-		cv.wait_for(lck, chrono::milliseconds(delay*3));
+		spawned_clients++;
+		cv.wait_for(lck, chrono::milliseconds(rand()%5000));
 	}
 	
     endwin();
