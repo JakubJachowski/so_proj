@@ -22,12 +22,18 @@ const int pad_start_x = 10;
 const int pad_start_y = 30;
 const int pad_width = 10;
 
+//brick size
+const int brick_width = 5;
+const int brick_height = 1;
+
 //screen size
 const int screen_width =  50;
 const int screen_height = 30;
 
+//objects count
 const int balls_count = 5;
 const int pads_count = 1;
+const int bricks_count = 10;
 
 
 int spawned_clients = 0;
@@ -45,11 +51,22 @@ struct Client{
 
 struct Ball{
     condition_variable cv_ball;
-    double pos_x = 0;
-    double pos_y = 0;
+    double pos_x = pad_start_x;
+    double pos_y = 10;
     double speed = 1;
-    double x_mov = 1;
+    double x_mov = 0;
     double y_mov = 1;
+	bool is_stuck = false;
+	int ball_color;
+};
+
+struct Brick{
+	Ball *stuck_ball;
+	int pos_x;
+	int pos_y;
+	int width = brick_width;
+	int height = brick_height;
+	int brick_color;
 };
 
 struct Pad{
@@ -85,10 +102,32 @@ queue<Client*> finished_clients;
 
 Ball balls_array[balls_count];
 Pad pads_array[pads_count];
+Brick bricks_array[bricks_count];
 
 thread balls_threads[balls_count];
 thread pads_threads[pads_count];
 
+
+int whichBrickTouching(Ball *ball){
+	for(int i=0;i<bricks_count;i++){
+		if(ball->pos_x>=bricks_array[i].pos_x && ball->pos_x<=(bricks_array[i].pos_x+brick_width)
+			&& ball->pos_y>=bricks_array[i].pos_y && ball->pos_y<=(bricks_array[i].pos_y+brick_height)){
+				if(bricks_array[i].stuck_ball==nullptr){
+					bricks_array[i].stuck_ball = ball;
+					bricks_array[i].brick_color = 8;
+					bricks_array[i].stuck_ball->is_stuck = true;
+					return i;
+				}else{
+					bricks_array[i].pos_x = -10;
+					bricks_array[i].pos_y = -10;
+					bricks_array[i].stuck_ball->is_stuck = false;
+					bricks_array[i].stuck_ball->cv_ball.notify_one();
+					bricks_array[i].stuck_ball = nullptr;
+				}
+		}
+	}
+	return -1;
+}
 
 bool isCircleFinished(Client *c){
     if(c->pos_x==queue_start_positionX && c->pos_y==start_height){
@@ -156,6 +195,10 @@ void ball(Ball *ball, Pad *pad){
 			return;
 		}
         
+		// if(whichBrickTouching(ball)!=-1) ball->is_stuck=true;
+		whichBrickTouching(ball);
+
+		while(ball->is_stuck) ball->cv_ball.wait(lck);
 
         if(!drawer_busy){
             draw = true;
@@ -269,13 +312,20 @@ void drawer(){
 
         //draw balls
         for(int i=0;i<balls_count;i++){
-            attron(COLOR_PAIR(2));
-            mvprintw(balls_array[i].pos_y,balls_array[i].pos_x,"x");								
+			attron(COLOR_PAIR(balls_array[i].ball_color));
+			mvprintw(balls_array[i].pos_y,balls_array[i].pos_x,"x");	            							
         }
 
+		//draw pads
         for(int i=0;i<pads_count;i++){
             attron(COLOR_PAIR(3));
             mvprintw(pads_array[i].pos_y,pads_array[i].pos_x,"xxxxxxxxxx");
+        }
+
+		//draw bricks
+		for(int i=0;i<bricks_count;i++){
+            attron(COLOR_PAIR(bricks_array[i].brick_color));
+            mvprintw(bricks_array[i].pos_y, bricks_array[i].pos_x, "xxxxx");
         }
 
 		// tmp_queue_status = "Queue count: " + to_string(waiting_clients.size());
@@ -367,6 +417,7 @@ int main(int argc, char *argv[])
 	init_pair(5, COLOR_MAGENTA, COLOR_MAGENTA);
 	init_pair(6, COLOR_WHITE, COLOR_WHITE);
 	init_pair(7, COLOR_YELLOW, COLOR_YELLOW);
+	init_pair(8, COLOR_RED, COLOR_RED);
 	
 
 
@@ -375,11 +426,28 @@ int main(int argc, char *argv[])
 	
 	srand(time(NULL));
 
+	for(int i=0;i<bricks_count;i++){
+		bricks_array[i].brick_color = 7;
+		if(i==0){
+			bricks_array[i].pos_x = 0;
+			bricks_array[i].pos_y = 0;
+		}else{
+			if(bricks_array[i-1].pos_x+brick_width<=screen_width){
+				bricks_array[i].pos_x = bricks_array[i-1].pos_x+brick_width+1;
+				bricks_array[i].pos_y = bricks_array[i-1].pos_y;
+			}else{
+				bricks_array[i].pos_x = 0;
+				bricks_array[i].pos_y = bricks_array[i-1].pos_y+brick_height+1;
+			}
+		}
+	}
+
 	for(int i=0;i<pads_count;i++){
         pads_threads[i] = thread(pad, &pads_array[i]);
     }
 
     for(int i=0;i<balls_count;i++){
+		balls_array[i].ball_color = rand()%6+2;
         balls_threads[i] = thread(ball, &balls_array[i], &pads_array[0]);
 		cv.wait_for(lck, chrono::milliseconds(rand()%1000));
     }
