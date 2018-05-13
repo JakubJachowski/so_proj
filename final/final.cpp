@@ -17,7 +17,16 @@ const int clients_count = 100;
 const int delay = 100;
 const int circle_size = 6;
 
-const int balls_count = 1;
+//pad start position
+const int pad_start_x = 10;
+const int pad_start_y = 30;
+const int pad_width = 10;
+
+//screen size
+const int screen_width =  50;
+const int screen_height = 30;
+
+const int balls_count = 5;
 const int pads_count = 1;
 
 
@@ -36,8 +45,8 @@ struct Client{
 
 struct Ball{
     condition_variable cv_ball;
-    double pos_x = 5;
-    double pos_y = 5;
+    double pos_x = 0;
+    double pos_y = 0;
     double speed = 1;
     double x_mov = 1;
     double y_mov = 1;
@@ -45,8 +54,8 @@ struct Ball{
 
 struct Pad{
     condition_variable cv_pad;
-    int pos_x = 3;
-    int pos_y = 10;
+    int pos_x = pad_start_x;
+    int pos_y = pad_start_y;
     char key_pressed = 'x';
 };  
 
@@ -116,14 +125,37 @@ bool isCircleFinished(Client *c){
 	}
 }
 
-void ball(Ball *ball){
+void ball(Ball *ball, Pad *pad){
     unique_lock<mutex> lck(mtx_ball);
     while(true){
         ball->cv_ball.wait_for(lck, chrono::milliseconds(delay));
         ball->pos_x += ball->x_mov;
         ball->pos_y += ball->y_mov;
-        if(ball->pos_x<=1 || ball->pos_x>= 10) ball->x_mov *= -1;
-        if(ball->pos_y<=1 || ball->pos_y>= 10) ball->y_mov *= -1;
+
+		if(ball->pos_y<=0){
+			ball->y_mov *=-1;
+		}
+		if(ball->pos_x<=0){
+			ball->x_mov*=-1;
+			ball->pos_x = 0;
+		}
+
+		if(ball->pos_x>=screen_width){
+			ball->x_mov*=-1;
+			ball->pos_x = screen_width;
+		}
+
+		if(ball->pos_y>=pad_start_y && ball->pos_y<=pad_start_y+1 && ball->pos_x>=pad->pos_x && ball->pos_x<=(pad->pos_x+pad_width)){
+			ball->y_mov*=-1;
+			ball->x_mov = (ball->pos_x-pad->pos_x-(pad_width/2))/10*3;
+		}
+
+		if(ball->pos_y>=pad_start_y+2) {
+			ball->pos_x = -1;
+			ball->pos_y = -1;
+			return;
+		}
+        
 
         if(!drawer_busy){
             draw = true;
@@ -136,8 +168,8 @@ void pad(Pad *pad){
     unique_lock<mutex> lck(mtx_pad);
     while(true){
         pad->cv_pad.wait_for(lck, chrono::milliseconds(delay));
-        if(pad->key_pressed == 'a') pad->pos_x--;
-        if(pad->key_pressed == 'd') pad->pos_x++;
+        if(pad->key_pressed == 'a') pad->pos_x-=3;
+        if(pad->key_pressed == 'd') pad->pos_x+=3;
         pad->key_pressed = 'z';
         
         if(!drawer_busy){
@@ -243,7 +275,7 @@ void drawer(){
 
         for(int i=0;i<pads_count;i++){
             attron(COLOR_PAIR(3));
-            mvprintw(pads_array[i].pos_y,pads_array[i].pos_x,"zzzz");
+            mvprintw(pads_array[i].pos_y,pads_array[i].pos_x,"xxxxxxxxxx");
         }
 
 		// tmp_queue_status = "Queue count: " + to_string(waiting_clients.size());
@@ -343,14 +375,17 @@ int main(int argc, char *argv[])
 	
 	srand(time(NULL));
 
-    for(int i=0;i<balls_count;i++){
-        balls_threads[i] = thread(ball, &balls_array[i]);
-    }
-
-
-    for(int i=0;i<pads_count;i++){
+	for(int i=0;i<pads_count;i++){
         pads_threads[i] = thread(pad, &pads_array[i]);
     }
+
+    for(int i=0;i<balls_count;i++){
+        balls_threads[i] = thread(ball, &balls_array[i], &pads_array[0]);
+		cv.wait_for(lck, chrono::milliseconds(rand()%1000));
+    }
+
+
+    
     
 
 	// for(int i=0;i<clients_count;i++){
