@@ -20,20 +20,20 @@ const int circle_size = 6;
 //pad start position
 const int pad_start_x = 10;
 const int pad_start_y = 30;
-const int pad_width = 10;
+const int pad_width = 16;
 
 //brick size
 const int brick_width = 5;
 const int brick_height = 1;
 
 //screen size
-const int screen_width =  50;
-const int screen_height = 30;
+const int screen_width =  60;
+const int screen_height = 80;
 
 //objects count
-const int balls_count = 5;
+const int balls_count = 8;
 const int pads_count = 1;
-const int bricks_count = 10;
+const int bricks_count = 60;
 
 
 int spawned_clients = 0;
@@ -51,8 +51,8 @@ struct Client{
 
 struct Ball{
     condition_variable cv_ball;
-    double pos_x = pad_start_x;
-    double pos_y = 10;
+    double pos_x = pad_start_x+(pad_width)/2;
+    double pos_y = pad_start_y-3;
     double speed = 1;
     double x_mov = 0;
     double y_mov = 1;
@@ -121,47 +121,15 @@ int whichBrickTouching(Ball *ball){
 					bricks_array[i].pos_x = -10;
 					bricks_array[i].pos_y = -10;
 					bricks_array[i].stuck_ball->is_stuck = false;
+					bricks_array[i].stuck_ball->x_mov = -1*ball->x_mov;	
+					bricks_array[i].stuck_ball->y_mov *= -1;
+					ball->y_mov *=-1;
 					bricks_array[i].stuck_ball->cv_ball.notify_one();
 					bricks_array[i].stuck_ball = nullptr;
 				}
 		}
 	}
 	return -1;
-}
-
-bool isCircleFinished(Client *c){
-    if(c->pos_x==queue_start_positionX && c->pos_y==start_height){
-		c->pos_y--;
-		return false;
-	}else{
-		if(c->pos_x==queue_start_positionX && c->pos_y>(start_height-circle_size) && c->pos_y<=start_height){
-			c->pos_y--;
-			return false;
-		}else{
-			if(c->pos_x<(queue_start_positionX+circle_size*2) && c->pos_y==(start_height-circle_size)){
-				c->pos_x++;
-				return false;
-			}else{
-				if(c->pos_x==(queue_start_positionX+2*circle_size) && c->pos_y<(start_height+circle_size)){
-					c->pos_y++;
-					return false;
-				}else{
-					if(c->pos_x>(queue_start_positionX) && c->pos_y==(start_height+circle_size)){
-						c->pos_x--;
-						return false;
-					}else{
-						if(c->pos_x==queue_start_positionX && c->pos_y>start_height+1){
-							c->pos_y--;
-							return false;
-						}else{
-							c->pos_y--;
-							return true;
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 void ball(Ball *ball, Pad *pad){
@@ -211,8 +179,8 @@ void pad(Pad *pad){
     unique_lock<mutex> lck(mtx_pad);
     while(true){
         pad->cv_pad.wait_for(lck, chrono::milliseconds(delay));
-        if(pad->key_pressed == 'a') pad->pos_x-=3;
-        if(pad->key_pressed == 'd') pad->pos_x+=3;
+        if(pad->key_pressed == 'a' && pad->pos_x>=4) pad->pos_x-=4;
+        if(pad->key_pressed == 'd'&& pad->pos_x<=screen_width-4) pad->pos_x+=4;
         pad->key_pressed = 'z';
         
         if(!drawer_busy){
@@ -220,71 +188,6 @@ void pad(Pad *pad){
             cv_drawer.notify_one();
         }
     }
-}
-
-void client(Client *client){
-	unique_lock<mutex> lck(mtx_client);
-
-	//walk to queue
-	for(int i=0;i<queue_start_positionX;i++){
-		client->cv_client.wait_for(lck, chrono::milliseconds(delay));
-		client->pos_x++;
-		//cout<<client->pos_x<<endl;
-		if(!drawer_busy) {
-			draw = true;
-			cv_drawer.notify_one();
-		}
-	}
-
-	for(int i=0;i<2;i++){
-		if(waiting_clients.size()==2){
-			if(doing_circle_clients.size()==2) {
-				client->pos_x--;
-				for(int i=0;i<50;i++){
-					client->pos_y--;
-					if(!drawer_busy) {
-						draw = true;
-						cv_drawer.notify_one();
-					}
-					client->cv_client.wait_for(lck, chrono::milliseconds(delay));
-				}
-				return;	
-			}
-		//if(true){
-			doing_circle_clients.push(client);
-			while(!isCircleFinished(client)){
-				//cout<<"circle"<<endl;
-				client->cv_client.wait_for(lck, chrono::milliseconds(delay));
-				if(!drawer_busy) {
-					//cout<<"notifying drawe"<<endl;
-					draw = true;
-					cv_drawer.notify_one();
-				}
-			}
-			doing_circle_clients.pop();
-		}else{
-			waiting_clients.push(client);
-			client->in_queue = true;
-			if(!drawer_busy) {
-				draw = true;
-				cv_drawer.notify_one();
-			}
-			while(!client->is_done) client->cv_client.wait(lck);
-			finished_clients.push(client);
-			break;
-		}
-		//client->is_done=true;
-	}
-	client->pos_x = queue_start_positionX + 2*circle_size + 1;
-	for(int i=0;i<20;i++){
-		client->cv_client.wait_for(lck, chrono::milliseconds(delay));
-		client->pos_x++;
-		if(!drawer_busy) {
-			draw = true;
-			cv_drawer.notify_one();
-		}
-	}
-	//end_value++;
 }
 
 void drawer(){
@@ -319,7 +222,7 @@ void drawer(){
 		//draw pads
         for(int i=0;i<pads_count;i++){
             attron(COLOR_PAIR(3));
-            mvprintw(pads_array[i].pos_y,pads_array[i].pos_x,"xxxxxxxxxx");
+            mvprintw(pads_array[i].pos_y,pads_array[i].pos_x,"xxxxxxxxxxxxxxxx");
         }
 
 		//draw bricks
@@ -449,7 +352,7 @@ int main(int argc, char *argv[])
     for(int i=0;i<balls_count;i++){
 		balls_array[i].ball_color = rand()%6+2;
         balls_threads[i] = thread(ball, &balls_array[i], &pads_array[0]);
-		cv.wait_for(lck, chrono::milliseconds(rand()%1000));
+		cv.wait_for(lck, chrono::milliseconds(1000));
     }
 
 
